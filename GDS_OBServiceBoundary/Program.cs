@@ -13,15 +13,18 @@ namespace GDS_OBServiceBoundary
         {
             if (args.Length > 0)
             {
-                //args[0]
+                #region 1. Get & Open Connection
+
                 //"Provider=OraOLEDB.Oracle;Data Source=NEPSTRN;User Id=NEPSBI;Password=xs2nepsbi"
-                string connStr = "Provider=OraOLEDB.Oracle;Data Source=NEPSTRN;User Id=NEPSBI;Password=xs2nepsbi";
+                string connStr = args[0];
                 OleDbConnection conn = new OleDbConnection(connStr);
                 conn.Open();
 
+                #endregion
+
                 Console.WriteLine("Starting Procedure");
 
-                #region Procedure
+                #region 2. Call Procedure
 
                 OleDbCommand cmd_callProcDisable = new OleDbCommand("NEPS.DISABLE_ALL_TRIGGER", conn);
                 cmd_callProcDisable.CommandType = CommandType.StoredProcedure;
@@ -42,41 +45,59 @@ namespace GDS_OBServiceBoundary
 
                 Console.WriteLine("Procedure Completed");
 
+                #region 3. Process
+
+                #region 3.1. Find list of segments as reference
+
                 OleDbCommand cmd_Segment = new OleDbCommand();
                 cmd_Segment.Connection = conn;
                 cmd_Segment.CommandText = "SELECT DISTINCT GDS_SEGMENT FROM REF_BI_GDS_SEGMENT";
                 cmd_Segment.CommandType = CommandType.Text;
                 OleDbDataReader dr_Segment = cmd_Segment.ExecuteReader();
 
+                #endregion
+
+                #region 3.2. Starts referencing data from segments
+
                 while (dr_Segment.Read())
                 {                    
                     string segment = dr_Segment.GetString(0);
+                    
+                    #region 3.2.2. Referencing data from main table
 
                     OleDbCommand cmd_SegmentDetails = new OleDbCommand();
                     cmd_SegmentDetails.Connection = conn;
-                    cmd_SegmentDetails.CommandText = "SELECT ACTION_TYPE, FEAT_TYPE, EXC_ABB, IPID, BND_TYPE, PARENT_IPID, AREA_TYPE, ROWID FROM BI_SERV_BOUND WHERE SEGMENT = :sgm AND BI_BATCH_ID IS NULL";
+                    cmd_SegmentDetails.CommandText = "SELECT ACTION_TYPE, FEAT_TYPE, EXC_ABB, IPID, BND_TYPE, PARENT_IPID, AREA_TYPE, ROWID FROM BI_SERV_BOUND WHERE SEGMENT = :sgm AND BI_BATCH_ID IS NULL AND TO_CHAR(PROCESSED_DATE, 'YYYYMMDD') >= '20201210'";
                     cmd_SegmentDetails.Parameters.AddWithValue(":sgm", segment);
                     cmd_SegmentDetails.CommandType = CommandType.Text;
                     OleDbDataReader dr_SegmentDetails = cmd_SegmentDetails.ExecuteReader();
 
+                    #endregion
+
+                    #region 3.2.3 Starts processing if main segment has related value in main table
+                    
                     if (dr_SegmentDetails.HasRows)
                     {
                         Console.WriteLine("Processing segment {0}", segment);
-                        List<string> lines = new List<string>();
 
-                        #region StartTime
+                        List<string> lines = new List<string>();
+                        
+                        #region 3.2.2.1 Get Batch ID
 
                         OleDbCommand cmd_GetBID = new OleDbCommand();
                         cmd_GetBID.Connection = conn;
                         cmd_GetBID.CommandText = "SELECT BI_BATCH_SEQ.NEXTVAL AS BID FROM DUAL";
                         cmd_GetBID.CommandType = CommandType.Text;
                         OleDbDataReader dr_BID = cmd_GetBID.ExecuteReader();
-
-                        //get batch id
+                        
                         dr_BID.Read();
                         string bid = dr_BID.GetDecimal(0).ToString();
                         dr_BID.Close();
                         cmd_GetBID.Dispose();
+
+                        #endregion
+
+                        #region 3.2.2.2 Record StartTime
 
                         OleDbCommand cmd_SetStartTime = new OleDbCommand();
                         cmd_SetStartTime.Connection = conn;
@@ -88,8 +109,11 @@ namespace GDS_OBServiceBoundary
 
                         #endregion
 
+                        #region 3.2.2.3 Starts reading and processing in details
+
                         while (dr_SegmentDetails.Read())
                         {
+                            //Store data from executed query into variables
                             string ACTION_TYPE = dr_SegmentDetails.GetString(0);
                             string FEAT_TYPE = dr_SegmentDetails.GetString(1);
                             string EXC_ABB = dr_SegmentDetails.GetString(2);
@@ -99,9 +123,12 @@ namespace GDS_OBServiceBoundary
                             string AREA_TYPE = (!dr_SegmentDetails.IsDBNull(6)) ? dr_SegmentDetails.GetDecimal(6).ToString() : "";
                             string ROWID = dr_SegmentDetails.GetString(7);
 
-                            Console.WriteLine("{0} is the checking value", IPID);
+                            Console.WriteLine("ipid: {0}", IPID);
 
+                            //Prepare first part of line
                             string line = String.Format("{0}|{1}|{2}|{3}|{4}|{5}|", ACTION_TYPE, FEAT_TYPE, EXC_ABB, IPID, BND_TYPE, PARENT_IPID);
+
+                            #region 3.2.2.3.1 Referencing data from Child table
 
                             OleDbCommand cmd_Coor = new OleDbCommand();
                             cmd_Coor.Connection = conn;
@@ -110,11 +137,17 @@ namespace GDS_OBServiceBoundary
                             cmd_Coor.CommandType = CommandType.Text;
                             OleDbDataReader dr_Coor = cmd_Coor.ExecuteReader();
 
+                            #endregion
+
                             Console.WriteLine("pass ipid section, now onto reading");
+
+                            #region 3.2.2.3.2 Starts processing if parent table has related values in child table
 
                             if (dr_Coor.HasRows)
                             {
                                 ArrayList coor_list = new ArrayList();
+
+                                #region 3.2.2.3.2.1 Starts referencing data from parent
 
                                 while (dr_Coor.Read())
                                 {
@@ -122,9 +155,10 @@ namespace GDS_OBServiceBoundary
                                     string COOR_Y = dr_Coor.GetDecimal(1).ToString();
                                     string ROWID_CHILD = dr_Coor.GetString(2);
 
+                                    //Add data from the child table to be appended to the current line
                                     coor_list.Add(new string[] { COOR_X, COOR_Y });
 
-                                    #region UpdateChild
+                                    #region Update child table
 
                                     OleDbCommand cmd_GetBIOChild = new OleDbCommand();
                                     cmd_GetBIOChild.Connection = conn;
@@ -148,7 +182,11 @@ namespace GDS_OBServiceBoundary
                                     #endregion
                                 }
 
+                                #endregion
+
                                 Console.WriteLine("Done Reading Coordinate");
+
+                                #region 3.2.2.3.2.2 Append list of data from child table to the current line
 
                                 int size = coor_list.Count;
 
@@ -157,17 +195,27 @@ namespace GDS_OBServiceBoundary
                                     String[] coors = (String[])coor_list[i];
                                     line += (i == 0 ? "" : "\n") + coors[0] + "|" + coors[1] + (i < size - 1 ? "|" : "");
                                 }
+
+                                #endregion
                             }
+
+                            #endregion
+
+                            #region 3.2.2.3.3 Close child table reader and dispose cursor
 
                             dr_Coor.Close();
                             cmd_Coor.Dispose();
 
+                            #endregion
+
                             Console.WriteLine("Adding lines");
+
+                            //Add data to list of output lines
                             lines.Add(line + "|" + AREA_TYPE);
 
                             Console.WriteLine("Updating parent");
 
-                            #region UpdateParent
+                            #region 3.2.2.3.4 Update main table
 
                             OleDbCommand cmd_GetBIO = new OleDbCommand();
                             cmd_GetBIO.Connection = conn;
@@ -180,19 +228,23 @@ namespace GDS_OBServiceBoundary
                             dr_BIO.Close();
                             cmd_GetBIO.Dispose();
 
-                            OleDbCommand cmd_UpdateDeletion = new OleDbCommand();
-                            cmd_UpdateDeletion.Connection = conn;
-                            cmd_UpdateDeletion.CommandText = "UPDATE BI_SERV_BOUND set BI_BATCH_ID = :bid_val, BI_INSERT_ORDER = :bio_val where rowid = :rowid_val";
-                            cmd_UpdateDeletion.Parameters.AddWithValue(":bid_val", bid);
-                            cmd_UpdateDeletion.Parameters.AddWithValue(":bio_val", bio);
-                            cmd_UpdateDeletion.Parameters.AddWithValue(":rowid_val", ROWID);
-                            cmd_UpdateDeletion.ExecuteNonQuery();
-                            cmd_UpdateDeletion.Dispose();
+                            OleDbCommand cmd_UpdateMain = new OleDbCommand();
+                            cmd_UpdateMain.Connection = conn;
+                            cmd_UpdateMain.CommandText = "UPDATE BI_SERV_BOUND set BI_BATCH_ID = :bid_val, BI_INSERT_ORDER = :bio_val where rowid = :rowid_val";
+                            cmd_UpdateMain.Parameters.AddWithValue(":bid_val", bid);
+                            cmd_UpdateMain.Parameters.AddWithValue(":bio_val", bio);
+                            cmd_UpdateMain.Parameters.AddWithValue(":rowid_val", ROWID);
+                            cmd_UpdateMain.ExecuteNonQuery();
+                            cmd_UpdateMain.Dispose();
 
                             #endregion
 
                             Console.WriteLine("Updating parent completed");
                         }
+
+                        #endregion
+
+                        #region 3.2.2.4 Write CSV file
 
                         string date = DateTime.Now.ToString("yyyyMMdd");
                         string filename = segment + "_DailyBND_" + date + ".csv";
@@ -202,9 +254,12 @@ namespace GDS_OBServiceBoundary
                             File.Delete(filename);
                         }
 
+                        //Write data to file
                         File.AppendAllLines(filename, lines);
 
-                        #region EndTime
+                        #endregion
+
+                        #region 3.2.2.5 Record EndTime
 
                         OleDbCommand cmd_SetEndTime = new OleDbCommand();
                         cmd_SetEndTime.Connection = conn;
@@ -217,15 +272,29 @@ namespace GDS_OBServiceBoundary
 
                         #endregion
                     }
+                    
+                    #endregion
+
+                    #region 3.2.4. Close main table reader and dispose cursor
 
                     dr_SegmentDetails.Close();
                     cmd_SegmentDetails.Dispose();
+
+                    #endregion
                 }
+
+                #endregion
+
+                #endregion
+
+                #region 4. Close Connection
 
                 dr_Segment.Close();
                 cmd_Segment.Dispose();
                 conn.Dispose();
                 conn.Close();
+
+                #endregion
             }
             else
             {
