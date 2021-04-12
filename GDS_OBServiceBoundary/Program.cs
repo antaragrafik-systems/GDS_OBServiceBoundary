@@ -22,8 +22,6 @@ namespace GDS_OBServiceBoundary
 
                 #endregion
 
-                Console.WriteLine("Starting Procedure");
-
                 #region 2. Call Procedure
 
                 OleDbCommand cmd_callProcDisable = new OleDbCommand("NEPS.DISABLE_ALL_TRIGGER", conn);
@@ -42,8 +40,6 @@ namespace GDS_OBServiceBoundary
                 cmd_callProcEnable.Dispose();
 
                 #endregion
-
-                Console.WriteLine("Procedure Completed");
 
                 #region 3. Process
 
@@ -78,8 +74,6 @@ namespace GDS_OBServiceBoundary
                     
                     if (dr_SegmentDetails.HasRows)
                     {
-                        Console.WriteLine("Processing segment {0}", segment);
-
                         List<string> lines = new List<string>();
                         
                         #region 3.2.2.1 Get Batch ID
@@ -123,8 +117,6 @@ namespace GDS_OBServiceBoundary
                             string AREA_TYPE = (!dr_SegmentDetails.IsDBNull(6)) ? dr_SegmentDetails.GetDecimal(6).ToString() : "";
                             string ROWID = dr_SegmentDetails.GetString(7);
 
-                            Console.WriteLine("ipid: {0}", IPID);
-
                             //Prepare first part of line
                             string line = String.Format("{0}|{1}|{2}|{3}|{4}|{5}|", ACTION_TYPE, FEAT_TYPE, EXC_ABB, IPID, BND_TYPE, PARENT_IPID);
 
@@ -138,8 +130,6 @@ namespace GDS_OBServiceBoundary
                             OleDbDataReader dr_Coor = cmd_Coor.ExecuteReader();
 
                             #endregion
-
-                            Console.WriteLine("pass ipid section, now onto reading");
 
                             #region 3.2.2.3.2 Starts processing if parent table has related values in child table
 
@@ -184,8 +174,6 @@ namespace GDS_OBServiceBoundary
 
                                 #endregion
 
-                                Console.WriteLine("Done Reading Coordinate");
-
                                 #region 3.2.2.3.2.2 Append list of data from child table to the current line
 
                                 int size = coor_list.Count;
@@ -208,12 +196,8 @@ namespace GDS_OBServiceBoundary
 
                             #endregion
 
-                            Console.WriteLine("Adding lines");
-
                             //Add data to list of output lines
                             lines.Add(line + "|" + AREA_TYPE);
-
-                            Console.WriteLine("Updating parent");
 
                             #region 3.2.2.3.4 Update main table
 
@@ -238,8 +222,6 @@ namespace GDS_OBServiceBoundary
                             cmd_UpdateMain.Dispose();
 
                             #endregion
-
-                            Console.WriteLine("Updating parent completed");
                         }
 
                         #endregion
