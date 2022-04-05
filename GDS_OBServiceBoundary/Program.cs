@@ -118,7 +118,7 @@ namespace GDS_OBServiceBoundary
                             string ROWID = dr_SegmentDetails.GetString(7);
 
                             //Prepare first part of line
-                            string line = String.Format("{0}|{1}|{2}|{3}|{4}|{5}|", ACTION_TYPE, FEAT_TYPE, EXC_ABB, IPID, BND_TYPE, PARENT_IPID);
+                            string line = String.Format("{0}|{1}|{2}|{3}|{4}|{5}|coor=[", ACTION_TYPE, FEAT_TYPE, EXC_ABB, IPID, BND_TYPE, PARENT_IPID);
 
                             #region 3.2.2.3.1 Referencing data from Child table
 
@@ -197,7 +197,7 @@ namespace GDS_OBServiceBoundary
                             #endregion
 
                             //Add data to list of output lines
-                            lines.Add(line + "|" + AREA_TYPE);
+                            lines.Add(line + "]|" + AREA_TYPE);
 
                             #region 3.2.2.3.4 Update main table
 
