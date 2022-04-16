@@ -11,6 +11,12 @@ namespace GDS_OBServiceBoundary
     {
         static void Main(string[] args)
         {
+            string path = Directory.GetCurrentDirectory();
+            string file_error = "error.txt";
+            string error = "";
+
+            if (File.Exists(Path.Combine(path, file_error))) File.Delete(Path.Combine(path, file_error));
+
             if (args.Length > 0)
             {
                 #region 1. Get & Open Connection
@@ -24,20 +30,27 @@ namespace GDS_OBServiceBoundary
 
                 #region 2. Call Procedure
 
-                OleDbCommand cmd_callProcDisable = new OleDbCommand("NEPS.DISABLE_ALL_TRIGGER", conn);
-                cmd_callProcDisable.CommandType = CommandType.StoredProcedure;
-                cmd_callProcDisable.ExecuteNonQuery();
-                cmd_callProcDisable.Dispose();
+                try
+                {
+                    OleDbCommand cmd_callProcDisable = new OleDbCommand("NEPS.DISABLE_ALL_TRIGGER", conn);
+                    cmd_callProcDisable.CommandType = CommandType.StoredProcedure;
+                    cmd_callProcDisable.ExecuteNonQuery();
+                    cmd_callProcDisable.Dispose();
 
-                OleDbCommand cmd_callProcedure = new OleDbCommand("GDS_OUTBOUND_SERVICE_BOUNDARY", conn);
-                cmd_callProcedure.CommandType = CommandType.StoredProcedure;
-                cmd_callProcedure.ExecuteNonQuery();
-                cmd_callProcedure.Dispose();
+                    OleDbCommand cmd_callProcedure = new OleDbCommand("GDS_OUTBOUND_SERVICE_BOUNDARY", conn);
+                    cmd_callProcedure.CommandType = CommandType.StoredProcedure;
+                    cmd_callProcedure.ExecuteNonQuery();
+                    cmd_callProcedure.Dispose();
 
-                OleDbCommand cmd_callProcEnable = new OleDbCommand("NEPS.ENABLE_ALL_TRIGGER", conn);
-                cmd_callProcEnable.CommandType = CommandType.StoredProcedure;
-                cmd_callProcEnable.ExecuteNonQuery();
-                cmd_callProcEnable.Dispose();
+                    OleDbCommand cmd_callProcEnable = new OleDbCommand("NEPS.ENABLE_ALL_TRIGGER", conn);
+                    cmd_callProcEnable.CommandType = CommandType.StoredProcedure;
+                    cmd_callProcEnable.ExecuteNonQuery();
+                    cmd_callProcEnable.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    error += ex.ToString();
+                }
 
                 #endregion
 
@@ -124,7 +137,7 @@ namespace GDS_OBServiceBoundary
 
                             OleDbCommand cmd_Coor = new OleDbCommand();
                             cmd_Coor.Connection = conn;
-                            cmd_Coor.CommandText = "SELECT COOR_X, COOR_Y, ROWID FROM BI_SERV_COOR WHERE IPID = :ipid_val";
+                            cmd_Coor.CommandText = "SELECT COOR_X, COOR_Y, ROWID FROM BI_SERV_COOR WHERE IPID = :ipid_val ORDER BY BI_INSERT_ORDER";
                             cmd_Coor.Parameters.AddWithValue(":ipid_val", IPID);
                             cmd_Coor.CommandType = CommandType.Text;
                             OleDbDataReader dr_Coor = cmd_Coor.ExecuteReader();
@@ -280,7 +293,15 @@ namespace GDS_OBServiceBoundary
             }
             else
             {
-                Console.WriteLine("Please enter connection string.\nExample: \"Provider = OraOLEDB.Oracle; Data Source = NEPSTRN; User Id = NEPSBI; Password = xs2nepsbi\"");
+                error += "Please enter connection string.\nExample: \"Provider = OraOLEDB.Oracle; Data Source = NEPSTRN; User Id = NEPSBI; Password = xs2nepsbi\"";
+            }
+
+            if(error != "")
+            {
+                using (StreamWriter sw = File.AppendText(Path.Combine(path, file_error)))
+                {
+                    sw.WriteLine(DateTime.Now + Environment.NewLine + error + Environment.NewLine);
+                }
             }
         }
     }
